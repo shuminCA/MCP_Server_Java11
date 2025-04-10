@@ -120,17 +120,15 @@ public class MyMCPServer {
         HttpServletSseServerTransportProvider transportProvider =
                 new HttpServletSseServerTransportProvider(new ObjectMapper(), "/", "/sse");
 
-        McpSyncServer syncServer = McpServer.sync(transportProvider)
+        McpAsyncServer syncServer = McpAsyncServer.builder(transportProvider)
                 .serverInfo("custom-server", "0.0.1")
                 .capabilities(McpSchema.ServerCapabilities.builder()
                         .tools(true)
-                        .resources(false, false)
-                        .prompts(false)
+                        .logging()
                         .build())
                 .build();
 
-        McpServerFeatures.SyncToolSpecification syncToolSpecification =
-                new McpServerFeatures.SyncToolSpecification(
+        AsyncToolSpecification asyncToolSpecification = AsyncToolSpecification.Sync(
                         new McpSchema.Tool(
                                 "weather-forecast",
                                 "gives weather forecast for a location using latitude and longitude",
@@ -171,7 +169,7 @@ public class MyMCPServer {
                         }
                 );
 
-        syncServer.addTool(syncToolSpecification);
+        syncServer.addTool(asyncToolSpecification).block();
 
         QueuedThreadPool threadPool = new QueuedThreadPool();
         threadPool.setName("server");

@@ -15,9 +15,6 @@ public class McpAsyncServerExchange {
 
     private final McpSchema.Implementation clientInfo;
 
-    private static final TypeReference<McpSchema.CreateMessageResult> CREATE_MESSAGE_RESULT_TYPE_REF = new TypeReference<>() {
-    };
-
     private static final TypeReference<McpSchema.ListRootsResult> LIST_ROOTS_RESULT_TYPE_REF = new TypeReference<>() {
     };
 
@@ -33,33 +30,6 @@ public class McpAsyncServerExchange {
         this.session = session;
         this.clientCapabilities = clientCapabilities;
         this.clientInfo = clientInfo;
-    }
-
-    /**
-     * Get the client capabilities that define the supported features and functionality.
-     * @return The client capabilities
-     */
-    public McpSchema.ClientCapabilities getClientCapabilities() {
-        return this.clientCapabilities;
-    }
-
-    /**
-     * Get the client implementation information.
-     * @return The client implementation details
-     */
-    public McpSchema.Implementation getClientInfo() {
-        return this.clientInfo;
-    }
-
-    public Mono<McpSchema.CreateMessageResult> createMessage(McpSchema.CreateMessageRequest createMessageRequest) {
-        if (this.clientCapabilities == null) {
-            return Mono.error(new McpError("Client must be initialized. Call the initialize method first!"));
-        }
-        if (this.clientCapabilities.sampling() == null) {
-            return Mono.error(new McpError("Client must be configured with sampling capabilities"));
-        }
-        return this.session.sendRequest(McpSchema.METHOD_SAMPLING_CREATE_MESSAGE, createMessageRequest,
-                CREATE_MESSAGE_RESULT_TYPE_REF);
     }
 
     /**

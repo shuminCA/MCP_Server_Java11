@@ -16,7 +16,7 @@ import reactor.core.publisher.Sinks;
  * Represents a Model Control Protocol (MCP) session on the server side. It manages
  * bidirectional JSON-RPC communication with the client.
  */
-public class McpServerSession implements McpSession {
+public class McpServerSession {
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerSession.class);
 
@@ -34,7 +34,7 @@ public class McpServerSession implements McpSession {
 
     private final Map<String, NotificationHandler> notificationHandlers;
 
-    private final McpServerTransport transport;
+    private final HttpServletSseServerTransportProvider.HttpServletMcpSessionTransport transport;
 
     private final Sinks.One<McpAsyncServerExchange> exchangeSink = Sinks.one();
 
@@ -50,7 +50,7 @@ public class McpServerSession implements McpSession {
 
     private final AtomicInteger state = new AtomicInteger(STATE_UNINITIALIZED);
 
-    public McpServerSession(String id, McpServerTransport transport, InitRequestHandler initHandler,
+    public McpServerSession(String id, HttpServletSseServerTransportProvider.HttpServletMcpSessionTransport transport, InitRequestHandler initHandler,
                             InitNotificationHandler initNotificationHandler, Map<String, RequestHandler<?>> requestHandlers,
                             Map<String, NotificationHandler> notificationHandlers) {
         this.id = id;
@@ -88,7 +88,6 @@ public class McpServerSession implements McpSession {
         return this.id + "-" + this.requestCounter.getAndIncrement();
     }
 
-    @Override
     public <T> Mono<T> sendRequest(String method, Object requestParams, TypeReference<T> typeRef) {
         String requestId = this.generateRequestId();
 
@@ -116,23 +115,12 @@ public class McpServerSession implements McpSession {
         });
     }
 
-    @Override
     public Mono<Void> sendNotification(String method, Map<String, Object> params) {
         McpSchema.JSONRPCNotification jsonrpcNotification = new McpSchema.JSONRPCNotification(McpSchema.JSONRPC_VERSION,
                 method, params);
         return this.transport.sendMessage(jsonrpcNotification);
     }
 
-    /**
-     * Called by the {@link McpServerTransportProvider} once the session is determined.
-     * The purpose of this method is to dispatch the message to an appropriate handler as
-     * specified by the MCP server implementation
-     * ({@link io.modelcontextprotocol.server.McpAsyncServer} or
-     * {@link io.modelcontextprotocol.server.McpSyncServer}) via
-     * {@link McpServerSession.Factory} that the server creates.
-     * @param message the incoming JSON-RPC message
-     * @return a Mono that completes when the message is processed
-     */
     public Mono<Void> handle(McpSchema.JSONRPCMessage message) {
         return Mono.defer(() -> {
             // TODO handle errors for communication to without initialization happening
@@ -249,12 +237,10 @@ public class McpServerSession implements McpSession {
         }
     }
 
-    @Override
     public Mono<Void> closeGracefully() {
         return this.transport.closeGracefully();
     }
 
-    @Override
     public void close() {
         this.transport.close();
     }
@@ -333,7 +319,7 @@ public class McpServerSession implements McpSession {
          * @param sessionTransport the transport to use for communication with the client.
          * @return a new server session.
          */
-        McpServerSession create(McpServerTransport sessionTransport);
+        McpServerSession create(HttpServletSseServerTransportProvider.HttpServletMcpSessionTransport sessionTransport);
 
     }
 

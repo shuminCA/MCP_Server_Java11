@@ -587,48 +587,21 @@ public final class McpSchema {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ServerCapabilities {
 
-        @JsonProperty("experimental")
-        private final Map<String, Object> experimental;
-
         @JsonProperty("logging")
         private final McpSchema.ServerCapabilities.LoggingCapabilities logging;
-
-        @JsonProperty("prompts")
-        private final McpSchema.ServerCapabilities.PromptCapabilities prompts;
-
-        @JsonProperty("resources")
-        private final McpSchema.ServerCapabilities.ResourceCapabilities resources;
 
         @JsonProperty("tools")
         private final McpSchema.ServerCapabilities.ToolCapabilities tools;
 
         public ServerCapabilities(
-                Map<String, Object> experimental,
                 McpSchema.ServerCapabilities.LoggingCapabilities logging,
-                McpSchema.ServerCapabilities.PromptCapabilities prompts,
-                McpSchema.ServerCapabilities.ResourceCapabilities resources,
                 McpSchema.ServerCapabilities.ToolCapabilities tools) {
-            this.experimental = experimental;
             this.logging = logging;
-            this.prompts = prompts;
-            this.resources = resources;
             this.tools = tools;
-        }
-
-        public Map<String, Object> getExperimental() {
-            return experimental;
         }
 
         public McpSchema.ServerCapabilities.LoggingCapabilities logging() {
             return logging;
-        }
-
-        public McpSchema.ServerCapabilities.PromptCapabilities prompts() {
-            return prompts;
-        }
-
-        public McpSchema.ServerCapabilities.ResourceCapabilities resources() {
-            return resources;
         }
 
         public McpSchema.ServerCapabilities.ToolCapabilities tools() {
@@ -639,44 +612,6 @@ public final class McpSchema {
         public static class LoggingCapabilities {
 
             public LoggingCapabilities() {
-            }
-        }
-
-        @JsonInclude(JsonInclude.Include.NON_ABSENT)
-        public static class PromptCapabilities {
-
-            @JsonProperty("listChanged")
-            private final Boolean listChanged;
-
-            public PromptCapabilities(Boolean listChanged) {
-                this.listChanged = listChanged;
-            }
-
-            public Boolean getListChanged() {
-                return listChanged;
-            }
-        }
-
-        @JsonInclude(JsonInclude.Include.NON_ABSENT)
-        public static class ResourceCapabilities {
-
-            @JsonProperty("subscribe")
-            private final Boolean subscribe;
-
-            @JsonProperty("listChanged")
-            private final Boolean listChanged;
-
-            public ResourceCapabilities(Boolean subscribe, Boolean listChanged) {
-                this.subscribe = subscribe;
-                this.listChanged = listChanged;
-            }
-
-            public Boolean getSubscribe() {
-                return subscribe;
-            }
-
-            public Boolean getListChanged() {
-                return listChanged;
             }
         }
 
@@ -703,27 +638,10 @@ public final class McpSchema {
 
             private Map<String, Object> experimental;
             private McpSchema.ServerCapabilities.LoggingCapabilities logging = new McpSchema.ServerCapabilities.LoggingCapabilities();
-            private McpSchema.ServerCapabilities.PromptCapabilities prompts;
-            private McpSchema.ServerCapabilities.ResourceCapabilities resources;
             private McpSchema.ServerCapabilities.ToolCapabilities tools;
-
-            public McpSchema.ServerCapabilities.Builder experimental(Map<String, Object> experimental) {
-                this.experimental = experimental;
-                return this;
-            }
 
             public McpSchema.ServerCapabilities.Builder logging() {
                 this.logging = new McpSchema.ServerCapabilities.LoggingCapabilities();
-                return this;
-            }
-
-            public McpSchema.ServerCapabilities.Builder prompts(Boolean listChanged) {
-                this.prompts = new McpSchema.ServerCapabilities.PromptCapabilities(listChanged);
-                return this;
-            }
-
-            public McpSchema.ServerCapabilities.Builder resources(Boolean subscribe, Boolean listChanged) {
-                this.resources = new McpSchema.ServerCapabilities.ResourceCapabilities(subscribe, listChanged);
                 return this;
             }
 
@@ -733,7 +651,7 @@ public final class McpSchema {
             }
 
             public McpSchema.ServerCapabilities build() {
-                return new McpSchema.ServerCapabilities(experimental, logging, prompts, resources, tools);
+                return new McpSchema.ServerCapabilities(logging, tools);
             }
         }
     }

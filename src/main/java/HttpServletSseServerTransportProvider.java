@@ -23,7 +23,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @WebServlet(asyncSupported = true)
-public class HttpServletSseServerTransportProvider extends HttpServlet implements McpServerTransportProvider {
+public class HttpServletSseServerTransportProvider extends HttpServlet {
 
     /** Logger for this class */
     private static final Logger logger = LoggerFactory.getLogger(HttpServletSseServerTransportProvider.class);
@@ -97,21 +97,9 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
     }
 
     /**
-     * Creates a new HttpServletSseServerTransportProvider instance with the default SSE
-     * endpoint.
-     * @param objectMapper The JSON object mapper to use for message
-     * serialization/deserialization
-     * @param messageEndpoint The endpoint path where clients will send their messages
-     */
-    public HttpServletSseServerTransportProvider(ObjectMapper objectMapper, String messageEndpoint) {
-        this(objectMapper, messageEndpoint, DEFAULT_SSE_ENDPOINT);
-    }
-
-    /**
      * Sets the session factory for creating new sessions.
      * @param sessionFactory The session factory to use
      */
-    @Override
     public void setSessionFactory(McpServerSession.Factory sessionFactory) {
         this.sessionFactory = sessionFactory;
     }
@@ -122,7 +110,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
      * @param params The parameters for the notification
      * @return A Mono that completes when the broadcast attempt is finished
      */
-    @Override
     public Mono<Void> notifyClients(String method, Map<String, Object> params) {
         if (sessions.isEmpty()) {
             logger.debug("No active sessions to broadcast message to");
@@ -147,12 +134,10 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
      * sends the initial endpoint information to the client.
      * @param request The HTTP servlet request
      * @param response The HTTP servlet response
-     * @throws ServletException If a servlet-specific error occurs
      * @throws IOException If an I/O error occurs
      */
-    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+            throws IOException {
 
         String requestURI = request.getRequestURI();
         if (!requestURI.endsWith(sseEndpoint)) {
@@ -282,7 +267,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
      * New connection attempts will be rejected during shutdown.
      * @return A Mono that completes when all sessions have been closed
      */
-    @Override
     public Mono<Void> closeGracefully() {
         isClosing.set(true);
         logger.debug("Initiating graceful shutdown with {} active sessions", sessions.size());
@@ -323,7 +307,7 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
      * Implementation of McpServerTransport for HttpServlet SSE sessions. This class
      * handles the transport-level communication for a specific client session.
      */
-    private class HttpServletMcpSessionTransport implements McpServerTransport {
+    class HttpServletMcpSessionTransport {
 
         private final String sessionId;
 
@@ -351,7 +335,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
          * @return The converted object of type T
          * @param <T> The target type
          */
-        @Override
         public <T> T unmarshalFrom(Object data, TypeReference<T> typeRef) {
             return objectMapper.convertValue(data, typeRef);
         }
@@ -360,7 +343,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
          * Initiates a graceful shutdown of the transport.
          * @return A Mono that completes when the shutdown is complete
          */
-        @Override
         public Mono<Void> closeGracefully() {
             return Mono.fromRunnable(() -> {
                 logger.debug("Closing session transport: {}", sessionId);
@@ -378,7 +360,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
         /**
          * Closes the transport immediately.
          */
-        @Override
         public void close() {
             try {
                 sessions.remove(sessionId);
@@ -390,7 +371,6 @@ public class HttpServletSseServerTransportProvider extends HttpServlet implement
             }
         }
 
-        @Override
         public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
             return Mono.fromRunnable(() -> {
                 try {
