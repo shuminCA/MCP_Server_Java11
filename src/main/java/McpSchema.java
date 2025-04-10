@@ -31,9 +31,6 @@ public final class McpSchema {
 
     private static final Logger logger = LoggerFactory.getLogger(McpSchema.class);
 
-    private McpSchema() {
-    }
-
     public static final String LATEST_PROTOCOL_VERSION = "2024-11-05";
 
     public static final String JSONRPC_VERSION = "2.0";
@@ -61,25 +58,15 @@ public final class McpSchema {
 
     public static final String METHOD_RESOURCES_READ = "resources/read";
 
-    public static final String METHOD_NOTIFICATION_RESOURCES_LIST_CHANGED = "notifications/resources/list_changed";
-
     public static final String METHOD_RESOURCES_TEMPLATES_LIST = "resources/templates/list";
-
-    public static final String METHOD_RESOURCES_SUBSCRIBE = "resources/subscribe";
-
-    public static final String METHOD_RESOURCES_UNSUBSCRIBE = "resources/unsubscribe";
 
     // Prompt Methods
     public static final String METHOD_PROMPT_LIST = "prompts/list";
 
     public static final String METHOD_PROMPT_GET = "prompts/get";
 
-    public static final String METHOD_NOTIFICATION_PROMPTS_LIST_CHANGED = "notifications/prompts/list_changed";
-
     // Logging Methods
     public static final String METHOD_LOGGING_SET_LEVEL = "logging/setLevel";
-
-    public static final String METHOD_NOTIFICATION_MESSAGE = "notifications/message";
 
     // Roots Methods
     public static final String METHOD_ROOTS_LIST = "roots/list";
@@ -99,26 +86,10 @@ public final class McpSchema {
      * Standard error codes used in MCP JSON-RPC responses.
      */
     public static final class ErrorCodes {
-
-        /**
-         * Invalid JSON was received by the server.
-         */
-        public static final int PARSE_ERROR = -32700;
-
-        /**
-         * The JSON sent is not a valid Request object.
-         */
-        public static final int INVALID_REQUEST = -32600;
-
         /**
          * The method does not exist / is not available.
          */
         public static final int METHOD_NOT_FOUND = -32601;
-
-        /**
-         * Invalid method parameter(s).
-         */
-        public static final int INVALID_PARAMS = -32602;
 
         /**
          * Internal JSON-RPC error.
