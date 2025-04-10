@@ -1,3 +1,5 @@
+package storage;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -207,7 +209,16 @@ public class McpServerFeatures {
             }
 
             this.serverInfo = serverInfo;
-            this.serverCapabilities = serverCapabilities;
+            this.serverCapabilities = (serverCapabilities != null) ? serverCapabilities
+                    : new McpSchema.ServerCapabilities(
+                    null, // experimental
+                    new McpSchema.ServerCapabilities.LoggingCapabilities(),
+                    !Utils.isEmpty(prompts) ? new McpSchema.ServerCapabilities.PromptCapabilities(false) : null,
+                    !Utils.isEmpty(resources)
+                            ? new McpSchema.ServerCapabilities.ResourceCapabilities(false, false) : null,
+                    !Utils.isEmpty(tools) ? new McpSchema.ServerCapabilities.ToolCapabilities(false) : null
+            );
+
             this.tools = (tools != null) ? tools : Collections.emptyList();
             this.resources = (resources != null) ? resources : Collections.emptyMap();
             this.resourceTemplates = (resourceTemplates != null) ? resourceTemplates : Collections.emptyList();

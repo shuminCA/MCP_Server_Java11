@@ -1,10 +1,11 @@
+package storage;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -14,7 +15,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import reactor.core.publisher.Flux;
@@ -109,7 +109,7 @@ public class McpAsyncServer {
             List<BiFunction<McpAsyncServerExchange, List<McpSchema.Root>, Mono<Void>>> rootsChangeConsumers =
                     features.getRootsChangeConsumers();
 
-            if (rootsChangeConsumers == null || rootsChangeConsumers.isEmpty()) {
+            if (Utils.isEmpty(rootsChangeConsumers)) {
                 rootsChangeConsumers = Collections.singletonList((exchange, roots) ->
                         Mono.fromRunnable(() ->
                                 logger.warn("Roots list changed notification, but no consumers provided. Roots list changed: {}", roots)
