@@ -1,0 +1,290 @@
+@startuml McpSchema Class Diagram
+
+' Main class
+class McpSchema {
+  +{static} LATEST_PROTOCOL_VERSION: String
+  +{static} JSONRPC_VERSION: String
+  +{static} METHOD_INITIALIZE: String
+  +{static} METHOD_NOTIFICATION_INITIALIZED: String
+  +{static} deserializeJsonRpcMessage(objectMapper: ObjectMapper, jsonText: String): JSONRPCMessage
+}
+
+' JSON-RPC Message types
+interface JSONRPCMessage {
+  +getId(): String
+  +getJsonrpc(): String
+  +getMethod(): String
+}
+
+class JSONRPCRequest {
+  -id: String
+  -jsonrpc: String
+  -method: String
+  -params: Object
+  +JSONRPCRequest(id: String, jsonrpc: String, method: String, params: Object)
+  +getId(): String
+  +getJsonrpc(): String
+  +getMethod(): String
+  +getParams(): Object
+}
+
+class JSONRPCNotification {
+  -jsonrpc: String
+  -method: String
+  -params: Object
+  +JSONRPCNotification(jsonrpc: String, method: String, params: Object)
+  +getJsonrpc(): String
+  +getMethod(): String
+  +getParams(): Object
+}
+
+class JSONRPCResponse {
+  -id: String
+  -jsonrpc: String
+  -result: Object
+  -error: JSONRPCError
+  +JSONRPCResponse(id: String, jsonrpc: String, result: Object, error: JSONRPCError)
+  +getId(): String
+  +getJsonrpc(): String
+  +getResult(): Object
+  +getError(): JSONRPCError
+}
+
+class JSONRPCError {
+  -code: int
+  -message: String
+  -data: Object
+  +JSONRPCError(code: int, message: String, data: Object)
+  +getCode(): int
+  +getMessage(): String
+  +getData(): Object
+}
+
+class ErrorCodes {
+  +{static} PARSE_ERROR: int
+  +{static} INVALID_REQUEST: int
+  +{static} METHOD_NOT_FOUND: int
+  +{static} INVALID_PARAMS: int
+  +{static} INTERNAL_ERROR: int
+  +{static} SERVER_ERROR_START: int
+  +{static} SERVER_ERROR_END: int
+  +{static} SERVER_NOT_INITIALIZED: int
+}
+
+interface Request {
+}
+
+class InitializeRequest {
+  -protocolVersion: String
+  -clientInfo: Implementation
+  -capabilities: ClientCapabilities
+  +InitializeRequest(protocolVersion: String, clientInfo: Implementation, capabilities: ClientCapabilities)
+}
+
+class InitializeResult {
+  -protocolVersion: String
+  -serverInfo: Implementation
+  -capabilities: ServerCapabilities
+  -instructions: String
+  +InitializeResult(protocolVersion: String, serverInfo: Implementation, capabilities: ServerCapabilities, instructions: String)
+}
+
+class ClientCapabilities {
+  -experimental: Map<String, Object>
+  -roots: RootCapabilities
+  +ClientCapabilities(experimental: Map<String, Object>, roots: RootCapabilities)
+}
+
+class RootCapabilities {
+  -listChanged: Boolean
+  +RootCapabilities(listChanged: Boolean)
+}
+
+class ClientCapabilities_Builder {
+  -experimental: Map<String, Object>
+  -roots: RootCapabilities
+  +experimental(experimental: Map<String, Object>): Builder
+  +roots(listChanged: Boolean): Builder
+  +sampling(): Builder
+  +build(): ClientCapabilities
+}
+
+class ServerCapabilities {
+  -experimental: Map<String, Object>
+  -logging: Boolean
+  -prompts: PromptCapabilities
+  -resources: ResourceCapabilities
+  -tools: ToolCapabilities
+  +ServerCapabilities(experimental: Map<String, Object>, logging: Boolean, prompts: PromptCapabilities, resources: ResourceCapabilities, tools: ToolCapabilities)
+}
+
+class ResourceCapabilities {
+  -subscribe: Boolean
+  -listChanged: Boolean
+  +ResourceCapabilities(subscribe: Boolean, listChanged: Boolean)
+}
+
+class ServerCapabilities_Builder {
+  -experimental: Map<String, Object>
+  -logging: Boolean
+  -prompts: PromptCapabilities
+  -resources: ResourceCapabilities
+  -tools: ToolCapabilities
+  +experimental(experimental: Map<String, Object>): Builder
+  +logging(): Builder
+  +prompts(listChanged: Boolean): Builder
+  +resources(subscribe: Boolean, listChanged: Boolean): Builder
+  +tools(listChanged: Boolean): Builder
+  +build(): ServerCapabilities
+}
+
+class Implementation {
+  -name: String
+  -version: String
+  +Implementation(name: String, version: String)
+}
+
+enum Role {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+interface Annotated {
+  +getAnnotations(): Annotations
+}
+
+class Annotations {
+  -title: String
+  -description: String
+  +Annotations(title: String, description: String)
+}
+
+class Resource {
+  -uri: String
+  -name: String
+  -mimeType: String
+  -annotations: Annotations
+  +Resource(uri: String, name: String, mimeType: String, annotations: Annotations)
+}
+
+class ResourceTemplate {
+  -uri: String
+  -name: String
+  -mimeType: String
+  -annotations: Annotations
+  +ResourceTemplate(uri: String, name: String, mimeType: String, annotations: Annotations)
+}
+
+class ListResourcesResult {
+  -resources: List<Resource>
+  -nextCursor: String
+  +ListResourcesResult(resources: List<Resource>, nextCursor: String)
+}
+
+class CallToolResult {
+  -content: List<Content>
+  -isError: Boolean
+  +CallToolResult(content: List<Content>, isError: Boolean)
+  +CallToolResult(content: String, isError: Boolean)
+}
+
+class CallToolResult_Builder {
+  -content: List<Content>
+  -isError: Boolean
+  +content(content: List<Content>): Builder
+  +textContent(textContent: List<String>): Builder
+  +addContent(contentItem: Content): Builder
+  +addTextContent(text: String): Builder
+  +isError(isError: Boolean): Builder
+  +build(): CallToolResult
+}
+
+interface Content {
+  +type(): String
+}
+
+class TextContent {
+  -audience: List<Role>
+  -priority: Double
+  -text: String
+  +TextContent(audience: List<Role>, priority: Double, text: String)
+}
+
+class ImageContent {
+  -audience: List<Role>
+  -priority: Double
+  -data: String
+  -mimeType: String
+  +ImageContent(audience: List<Role>, priority: Double, data: String, mimeType: String)
+}
+
+class Tool {
+  -name: String
+  -description: String
+  -inputSchema: JsonSchema
+  +Tool(name: String, description: String, inputSchema: JsonSchema)
+}
+
+class JsonSchema {
+  -type: String
+  -properties: Map<String, SchemaProperty>
+  -required: List<String>
+}
+
+class SchemaProperty {
+  -type: String
+  +SchemaProperty(type: String)
+}
+
+class Prompt {
+  -name: String
+  -description: String
+  -arguments: List<PromptArgument>
+  +Prompt(name: String, description: String, arguments: List<PromptArgument>)
+}
+
+class PromptArgument {
+  -name: String
+  -description: String
+  -required: Boolean
+  +PromptArgument(name: String, description: String, required: Boolean)
+}
+
+class Root {
+  -uri: String
+  -name: String
+  +Root(uri: String, name: String)
+}
+
+' Relationships
+JSONRPCMessage <|.. JSONRPCRequest
+JSONRPCMessage <|.. JSONRPCNotification
+JSONRPCMessage <|.. JSONRPCResponse
+
+JSONRPCResponse o-- JSONRPCError
+
+Request <|.. InitializeRequest
+
+Annotated <|.. Resource
+Annotated <|.. ResourceTemplate
+
+Content <|.. TextContent
+Content <|.. ImageContent
+
+CallToolResult o-- Content
+CallToolResult -- CallToolResult_Builder
+
+ClientCapabilities -- RootCapabilities
+ClientCapabilities -- ClientCapabilities_Builder
+
+ServerCapabilities -- ResourceCapabilities
+ServerCapabilities -- ServerCapabilities_Builder
+
+JsonSchema o-- SchemaProperty
+
+' Group classes under McpSchema
+note "All classes are part of McpSchema" as N1
+
+@enduml

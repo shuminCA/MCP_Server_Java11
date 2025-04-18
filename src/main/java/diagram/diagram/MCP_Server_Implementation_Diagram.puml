@@ -1,0 +1,232 @@
+@startuml MCP Server Implementation Diagram
+
+' Interfaces
+interface McpServerTransportProvider {
+  +setSessionFactory(sessionFactory: McpServerSession.Factory): void
+  +notifyClients(method: String, params: Map<String, Object>): Mono<Void>
+  +close(): void
+  +closeGracefully(): Mono<Void>
+}
+
+interface McpTransport {
+  +connect(handler: Function): Mono<Void>
+  +close(): void
+  +closeGracefully(): Mono<Void>
+  +sendMessage(message: McpSchema.JSONRPCMessage): Mono<Void>
+  +<T> unmarshalFrom(data: Object, typeRef: TypeReference<T>): T
+}
+
+interface McpSession {
+  +<T> sendRequest(method: String, requestParams: Object, typeRef: TypeReference<T>): Mono<T>
+  +sendNotification(method: String): Mono<Void>
+  +sendNotification(method: String, params: Map<String, Object>): Mono<Void>
+  +closeGracefully(): Mono<Void>
+  +close(): void
+}
+
+interface McpServer {
+  +{static} sync(transportProvider: McpServerTransportProvider): SyncSpecification
+  +{static} async(transportProvider: McpServerTransportProvider): AsyncSpecification
+}
+
+' Classes
+class McpServerSession {
+  -id: String
+  -transport: McpServerTransport
+  -initHandler: InitRequestHandler
+  -notificationHandlers: Map<String, NotificationHandler>
+  -requestHandlers: Map<String, RequestHandler<?>>
+  +McpServerSession(id: String, transport: McpServerTransport, initHandler: InitRequestHandler, notificationHandlers: Map, requestHandlers: Map)
+  +init(clientCapabilities: McpSchema.ClientCapabilities, clientInfo: McpSchema.Implementation): void
+  +handle(message: McpSchema.JSONRPCMessage): Mono<Void>
+  +getId(): String
+}
+
+class McpServerSession_Factory {
+  +create(transport: McpServerTransport): McpServerSession
+}
+
+interface McpServerSession_InitRequestHandler {
+  +handle(exchange: McpAsyncServerExchange, request: McpSchema.InitializeRequest): Mono<McpSchema.InitializeResult>
+}
+
+interface McpServerSession_NotificationHandler {
+  +handle(exchange: McpAsyncServerExchange, params: Object): Mono<Void>
+}
+
+interface McpServerSession_RequestHandler {
+  +handle(exchange: McpAsyncServerExchange, params: Object): Mono<T>
+}
+
+class McpAsyncServer {
+  -mcpTransportProvider: McpServerTransportProvider
+  -objectMapper: ObjectMapper
+  -features: McpServerFeatures.Async
+  +McpAsyncServer(mcpTransportProvider: McpServerTransportProvider, objectMapper: ObjectMapper, features: McpServerFeatures.Async)
+}
+
+class McpAsyncServer_AsyncServerImpl {
+  -toolsListRequestHandler(): RequestHandler<McpSchema.ListToolsResult>
+  -toolsCallRequestHandler(): RequestHandler<McpSchema.CallToolResult>
+  -resourcesListRequestHandler(): RequestHandler<McpSchema.ListResourcesResult>
+  -resourceTemplateListRequestHandler(): RequestHandler<McpSchema.ListResourceTemplatesResult>
+  -resourcesReadRequestHandler(): RequestHandler<McpSchema.ReadResourceResult>
+  -promptsListRequestHandler(): RequestHandler<McpSchema.ListPromptsResult>
+  -promptsGetRequestHandler(): RequestHandler<McpSchema.GetPromptResult>
+  -setLoggerRequestHandler(): RequestHandler<Void>
+  -asyncRootsListChangedNotificationHandler(): NotificationHandler
+  -asyncInitializeRequestHandler(): Mono<McpSchema.InitializeResult>
+}
+
+class McpSyncServer {
+  -asyncServer: McpAsyncServer
+  +McpSyncServer(asyncServer: McpAsyncServer)
+}
+
+class McpAsyncServerExchange {
+  -session: McpServerSession
+  -clientCapabilities: McpSchema.ClientCapabilities
+  -clientInfo: McpSchema.Implementation
+  +McpAsyncServerExchange(session: McpServerSession, clientCapabilities: McpSchema.ClientCapabilities, clientInfo: McpSchema.Implementation)
+  +createMessage(createMessageRequest: McpSchema.CreateMessageRequest): Mono<McpSchema.CreateMessageResult>
+  +listRoots(cursor: String): Mono<McpSchema.ListRootsResult>
+}
+
+class McpSyncServerExchange {
+  -asyncExchange: McpAsyncServerExchange
+  +McpSyncServerExchange(asyncExchange: McpAsyncServerExchange)
+}
+
+class HttpServletSseServerTransportProvider {
+  -objectMapper: ObjectMapper
+  -baseUrl: String
+  -messageEndpoint: String
+  -sseEndpoint: String
+  -sessions: Map<String, McpServerSession>
+  -isClosing: AtomicBoolean
+  -sessionFactory: McpServerSession.Factory
+  +HttpServletSseServerTransportProvider(objectMapper: ObjectMapper, messageEndpoint: String, sseEndpoint: String)
+  +HttpServletSseServerTransportProvider(objectMapper: ObjectMapper, baseUrl: String, messageEndpoint: String, sseEndpoint: String)
+  +setSessionFactory(sessionFactory: McpServerSession.Factory): void
+  +notifyClients(method: String, params: Map<String, Object>): Mono<Void>
+  +doGet(request: HttpServletRequest, response: HttpServletResponse): void
+  +doPost(request: HttpServletRequest, response: HttpServletResponse): void
+  +closeGracefully(): Mono<Void>
+}
+
+class HttpServletMcpSessionTransport {
+  -sessionId: String
+  -asyncContext: AsyncContext
+  -writer: PrintWriter
+  +HttpServletMcpSessionTransport(sessionId: String, asyncContext: AsyncContext, writer: PrintWriter)
+  +sendMessage(message: McpSchema.JSONRPCMessage): Mono<Void>
+  +closeGracefully(): Mono<Void>
+}
+
+class McpServerFeatures {
+}
+
+class McpServerFeatures_AsyncToolSpecification {
+  -tool: McpSchema.Tool
+  -handler: BiFunction<McpAsyncServerExchange, Map<String, Object>, Mono<McpSchema.CallToolResult>>
+  +AsyncToolSpecification(tool: McpSchema.Tool, handler: BiFunction)
+  +{static} fromSync(tool: SyncToolSpecification): AsyncToolSpecification
+}
+
+class McpServerFeatures_SyncToolSpecification {
+  -tool: McpSchema.Tool
+  -handler: BiFunction<McpSyncServerExchange, Map<String, Object>, McpSchema.CallToolResult>
+  +SyncToolSpecification(tool: McpSchema.Tool, handler: BiFunction)
+}
+
+class McpServerFeatures_Async {
+  -serverInfo: McpSchema.Implementation
+  -serverCapabilities: McpSchema.ServerCapabilities
+  -tools: List<AsyncToolSpecification>
+  -resources: Map<String, AsyncResourceSpecification>
+  -resourceTemplates: List<McpSchema.ResourceTemplate>
+  -prompts: Map<String, AsyncPromptSpecification>
+  -rootsChangeHandlers: List<BiFunction>
+  +Async(serverInfo: McpSchema.Implementation, serverCapabilities: McpSchema.ServerCapabilities, tools: List, resources: Map, resourceTemplates: List, prompts: Map, rootsChangeHandlers: List)
+  +{static} fromSync(syncSpec: Sync): Async
+}
+
+class McpServerFeatures_Sync {
+  -serverInfo: McpSchema.Implementation
+  -serverCapabilities: McpSchema.ServerCapabilities
+  -tools: List<SyncToolSpecification>
+  -resources: Map<String, SyncResourceSpecification>
+  -resourceTemplates: List<McpSchema.ResourceTemplate>
+  -prompts: Map<String, SyncPromptSpecification>
+  -rootsChangeHandlers: List<BiConsumer>
+  +Sync(serverInfo: McpSchema.Implementation, serverCapabilities: McpSchema.ServerCapabilities, tools: List, resources: Map, resourceTemplates: List, prompts: Map, rootsChangeHandlers: List)
+}
+
+class McpServer_AsyncSpecification {
+  -transportProvider: McpServerTransportProvider
+  -objectMapper: ObjectMapper
+  -serverInfo: McpSchema.Implementation
+  -serverCapabilities: McpSchema.ServerCapabilities
+  -instructions: String
+  -tools: List<McpServerFeatures.AsyncToolSpecification>
+  -resources: Map<String, McpServerFeatures.AsyncResourceSpecification>
+  -resourceTemplates: List<McpSchema.ResourceTemplate>
+  -prompts: Map<String, McpServerFeatures.AsyncPromptSpecification>
+  -rootsChangeHandlers: List<BiFunction>
+  +serverInfo(serverInfo: McpSchema.Implementation): AsyncSpecification
+  +serverInfo(name: String, version: String): AsyncSpecification
+  +instructions(instructions: String): AsyncSpecification
+  +capabilities(serverCapabilities: McpSchema.ServerCapabilities): AsyncSpecification
+  +build(): McpAsyncServer
+}
+
+class McpServer_SyncSpecification {
+  -transportProvider: McpServerTransportProvider
+  -objectMapper: ObjectMapper
+  -serverInfo: McpSchema.Implementation
+  -serverCapabilities: McpSchema.ServerCapabilities
+  -instructions: String
+  -tools: List<McpServerFeatures.SyncToolSpecification>
+  -resources: Map<String, McpServerFeatures.SyncResourceSpecification>
+  -resourceTemplates: List<McpSchema.ResourceTemplate>
+  -prompts: Map<String, McpServerFeatures.SyncPromptSpecification>
+  -rootsChangeHandlers: List<BiConsumer>
+  +build(): McpSyncServer
+}
+
+' Relationships
+McpSession <|.. McpServerSession
+McpServerTransportProvider <|.. HttpServletSseServerTransportProvider
+McpTransport <|.. HttpServletMcpSessionTransport
+
+McpServer_AsyncSpecification ..> McpAsyncServer : creates
+McpServer_SyncSpecification ..> McpSyncServer : creates
+
+McpAsyncServer_AsyncServerImpl --|> McpAsyncServer
+
+McpAsyncServer o-- McpServerTransportProvider
+McpSyncServer o-- McpAsyncServer
+
+McpServerSession -- McpServerSession_Factory
+McpServerSession -- McpServerSession_InitRequestHandler
+McpServerSession -- McpServerSession_NotificationHandler
+McpServerSession -- McpServerSession_RequestHandler
+
+McpAsyncServerExchange o-- McpServerSession
+McpSyncServerExchange o-- McpAsyncServerExchange
+
+HttpServletSseServerTransportProvider -- HttpServletMcpSessionTransport
+HttpServletSseServerTransportProvider o-- McpServerSession_Factory
+
+McpServerFeatures -- McpServerFeatures_AsyncToolSpecification
+McpServerFeatures -- McpServerFeatures_SyncToolSpecification
+McpServerFeatures -- McpServerFeatures_Async
+McpServerFeatures -- McpServerFeatures_Sync
+
+McpServerFeatures_AsyncToolSpecification ..> McpServerFeatures_SyncToolSpecification : converts from
+McpServerFeatures_Async ..> McpServerFeatures_Sync : converts from
+
+McpServer -- McpServer_AsyncSpecification
+McpServer -- McpServer_SyncSpecification
+
+@enduml

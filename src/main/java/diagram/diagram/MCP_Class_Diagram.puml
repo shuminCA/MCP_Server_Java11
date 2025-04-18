@@ -1,0 +1,159 @@
+@startuml MCP Class Diagram
+
+' Interface definitions
+interface McpServer {
+  +{static} sync(transportProvider: McpServerTransportProvider): SyncSpecification
+  +{static} async(transportProvider: McpServerTransportProvider): AsyncSpecification
+}
+
+interface McpSession {
+  +<T> sendRequest(method: String, requestParams: Object, typeRef: TypeReference<T>): Mono<T>
+  +sendNotification(method: String): Mono<Void>
+  +sendNotification(method: String, params: Map<String, Object>): Mono<Void>
+  +closeGracefully(): Mono<Void>
+  +close(): void
+}
+
+interface McpTransport {
+  +connect(handler: Function): Mono<Void>
+  +close(): void
+  +closeGracefully(): Mono<Void>
+  +sendMessage(message: McpSchema.JSONRPCMessage): Mono<Void>
+  +<T> unmarshalFrom(data: Object, typeRef: TypeReference<T>): T
+}
+
+interface McpServerTransportProvider {
+  +setSessionFactory(sessionFactory: McpServerSession.Factory): void
+  +notifyClients(method: String, params: Map<String, Object>): Mono<Void>
+  +close(): void
+  +closeGracefully(): Mono<Void>
+}
+
+' Class definitions
+class McpSchema {
+  +{static} LATEST_PROTOCOL_VERSION: String
+  +{static} JSONRPC_VERSION: String
+  +{static} METHOD_INITIALIZE: String
+  +{static} METHOD_NOTIFICATION_INITIALIZED: String
+  +{static} deserializeJsonRpcMessage(objectMapper: ObjectMapper, jsonText: String): JSONRPCMessage
+}
+
+class McpServerSession {
+  -id: String
+  -transport: McpServerTransport
+  -initHandler: InitRequestHandler
+  -notificationHandlers: Map<String, NotificationHandler>
+  -requestHandlers: Map<String, RequestHandler<?>>
+  +McpServerSession(id: String, transport: McpServerTransport, initHandler: InitRequestHandler, notificationHandlers: Map, requestHandlers: Map)
+  +init(clientCapabilities: McpSchema.ClientCapabilities, clientInfo: McpSchema.Implementation): void
+  +<T> sendRequest(method: String, requestParams: Object, typeRef: TypeReference<T>): Mono<T>
+  +sendNotification(method: String, params: Map<String, Object>): Mono<Void>
+  +handle(message: McpSchema.JSONRPCMessage): Mono<Void>
+  +getId(): String
+  +close(): void
+}
+
+class McpClientSession {
+  -requestTimeout: Duration
+  -transport: McpTransport
+  -requestHandlers: Map<String, RequestHandler<?>>
+  -notificationHandlers: Map<String, NotificationHandler>
+  -connection: Mono<Void>
+  +McpClientSession(requestTimeout: Duration, transport: McpTransport, requestHandlers: Map, notificationHandlers: Map)
+  +<T> sendRequest(method: String, requestParams: Object, typeRef: TypeReference<T>): Mono<T>
+  +sendNotification(method: String, params: Map<String, Object>): Mono<Void>
+  +closeGracefully(): Mono<Void>
+  +close(): void
+}
+
+class McpAsyncServer {
+  -mcpTransportProvider: McpServerTransportProvider
+  -objectMapper: ObjectMapper
+  -features: McpServerFeatures.Async
+  +McpAsyncServer(mcpTransportProvider: McpServerTransportProvider, objectMapper: ObjectMapper, features: McpServerFeatures.Async)
+}
+
+class McpSyncServer {
+  -asyncServer: McpAsyncServer
+  +McpSyncServer(asyncServer: McpAsyncServer)
+}
+
+class McpAsyncServerExchange {
+  -session: McpServerSession
+  -clientCapabilities: McpSchema.ClientCapabilities
+  -clientInfo: McpSchema.Implementation
+  +McpAsyncServerExchange(session: McpServerSession, clientCapabilities: McpSchema.ClientCapabilities, clientInfo: McpSchema.Implementation)
+  +createMessage(createMessageRequest: McpSchema.CreateMessageRequest): Mono<McpSchema.CreateMessageResult>
+  +listRoots(cursor: String): Mono<McpSchema.ListRootsResult>
+}
+
+class McpSyncServerExchange {
+  -asyncExchange: McpAsyncServerExchange
+  +McpSyncServerExchange(asyncExchange: McpAsyncServerExchange)
+}
+
+class McpServerFeatures {
+  ' Inner classes and methods
+}
+
+class HttpServletSseServerTransportProvider {
+  -objectMapper: ObjectMapper
+  -baseUrl: String
+  -messageEndpoint: String
+  -sseEndpoint: String
+  -sessions: Map<String, McpServerSession>
+  -isClosing: AtomicBoolean
+  -sessionFactory: McpServerSession.Factory
+  +HttpServletSseServerTransportProvider(objectMapper: ObjectMapper, messageEndpoint: String, sseEndpoint: String)
+  +HttpServletSseServerTransportProvider(objectMapper: ObjectMapper, baseUrl: String, messageEndpoint: String, sseEndpoint: String)
+  +setSessionFactory(sessionFactory: McpServerSession.Factory): void
+  +notifyClients(method: String, params: Map<String, Object>): Mono<Void>
+  +doGet(request: HttpServletRequest, response: HttpServletResponse): void
+  +doPost(request: HttpServletRequest, response: HttpServletResponse): void
+  +closeGracefully(): Mono<Void>
+}
+
+class MyMCPServer {
+  -{static} NWS_API_BASE: String
+  -{static} objectMapper: ObjectMapper
+  -{static} getWeatherForecast(latitude: double, longitude: double): String
+  -{static} makeNwsRequest(url: String): JsonNode
+  +{static} main(args: String[]): void
+}
+
+class McpError {
+  -jsonRpcError: McpSchema.JSONRPCResponse.JSONRPCError
+  +McpError(jsonRpcError: McpSchema.JSONRPCResponse.JSONRPCError)
+}
+
+class Assert {
+  +{static} notEmpty(collection: Collection<?>, message: String): void
+  +{static} notNull(object: Object, message: String): void
+  +{static} hasText(text: String, message: String): void
+}
+
+class Utils {
+  ' Utility methods
+}
+
+' Relationships
+McpSession <|.. McpServerSession
+McpSession <|.. McpClientSession
+
+McpServerTransportProvider <|.. HttpServletSseServerTransportProvider
+
+McpAsyncServer o-- McpServerTransportProvider
+McpSyncServer o-- McpAsyncServer
+
+McpServerSession --> McpServerTransportProvider : uses
+McpClientSession --> McpTransport : uses
+
+McpAsyncServerExchange o-- McpServerSession
+McpSyncServerExchange o-- McpAsyncServerExchange
+
+MyMCPServer ..> McpSyncServer : creates
+MyMCPServer ..> HttpServletSseServerTransportProvider : creates
+
+' Note: Removed problematic relationships that were causing errors
+
+@enduml

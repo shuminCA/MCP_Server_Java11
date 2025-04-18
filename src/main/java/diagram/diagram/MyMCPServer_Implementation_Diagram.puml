@@ -1,0 +1,134 @@
+@startuml MyMCPServer Implementation Diagram
+!pragma layout smetana
+' Enable mixing of different UML elements
+allowmixing
+
+' Classes
+class MyMCPServer {
+  -{static} NWS_API_BASE: String
+  -{static} objectMapper: ObjectMapper
+  -{static} getWeatherForecast(latitude: double, longitude: double): String
+  -{static} makeNwsRequest(url: String): JsonNode
+  +{static} main(args: String[]): void
+}
+
+class HttpServletSseServerTransportProvider {
+  -objectMapper: ObjectMapper
+  -baseUrl: String
+  -messageEndpoint: String
+  -sseEndpoint: String
+  -sessions: Map<String, McpServerSession>
+  -isClosing: AtomicBoolean
+  -sessionFactory: McpServerSession.Factory
+}
+
+class McpSyncServer {
+  -asyncServer: McpAsyncServer
+}
+
+class SyncToolSpecification {
+  -tool: Tool
+  -handler: BiFunction
+}
+
+class Tool {
+  -name: String
+  -description: String
+  -inputSchema: JsonSchema
+}
+
+class CallToolResult {
+  -content: List<Content>
+  -isError: Boolean
+}
+
+class TextContent {
+  -audience: List<Role>
+  -priority: Double
+  -text: String
+}
+
+class Server {
+  ' Jetty Server
+}
+
+class ServletContextHandler {
+  ' Jetty ServletContextHandler
+}
+
+' External APIs
+rectangle "National Weather Service API" as NWS_API {
+  component "Points API" as PointsAPI
+  component "Forecast API" as ForecastAPI
+}
+
+' Sequence of setup in main()
+note left of MyMCPServer::main
+  1. Create transport provider
+  2. Create sync server with capabilities
+  3. Create weather forecast tool
+  4. Add tool to server
+  5. Set up Jetty server
+  6. Start server
+end note
+
+' Implementation details
+note right of MyMCPServer::getWeatherForecast
+  1. Round coordinates
+  2. Get grid endpoint from NWS API
+  3. Get forecast from grid endpoint
+  4. Format forecast data
+  5. Return formatted forecast
+end note
+
+note right of MyMCPServer::makeNwsRequest
+  1. Create HTTP request with headers
+  2. Send request with redirect support
+  3. Parse JSON response
+  4. Handle errors and redirects
+end note
+
+' Relationships
+MyMCPServer ..> HttpServletSseServerTransportProvider : creates
+MyMCPServer ..> McpSyncServer : creates
+MyMCPServer ..> SyncToolSpecification : creates
+MyMCPServer ..> Tool : creates
+MyMCPServer ..> Server : creates
+MyMCPServer ..> ServletContextHandler : creates
+
+MyMCPServer ..> NWS_API : calls
+
+SyncToolSpecification ..> CallToolResult : returns
+CallToolResult o-- TextContent
+
+' Tool execution flow
+note "Weather Forecast Tool Flow" as N1
+note "1. Client calls 'tools/call' with lat/long" as N2
+note "2. Server invokes handler function" as N3
+note "3. Handler calls getWeatherForecast()" as N4
+note "4. getWeatherForecast calls NWS API" as N5
+note "5. Format response and return CallToolResult" as N6
+
+N1 .. N2
+N2 .. N3
+N3 .. N4
+N4 .. N5
+N5 .. N6
+
+' Server configuration
+note "Server Configuration" as SC
+note "- Port: 45450" as SC1
+note "- Endpoints: / (messages), /sse (events)" as SC2
+note "- Server Info: custom-server v0.0.1" as SC3
+note "- Capabilities: tools enabled, resources/prompts disabled" as SC4
+
+SC .. SC1
+SC1 .. SC2
+SC2 .. SC3
+SC3 .. SC4
+
+' Note about class origins
+note "SyncToolSpecification is from McpServerFeatures" as NST
+note "Tool, CallToolResult, and TextContent are from McpSchema" as NMS
+
+@enduml

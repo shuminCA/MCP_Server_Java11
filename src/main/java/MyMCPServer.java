@@ -15,6 +15,25 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 
+import modelcontextprotocol.server.McpAsyncServer;
+import modelcontextprotocol.server.McpServer;
+import modelcontextprotocol.server.McpServerFeatures;
+import modelcontextprotocol.server.McpSyncServer;
+import modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider;
+import modelcontextprotocol.spec.McpSchema;
+
+/**
+ * This is the main application class that sets up and runs the MCP server. It implements a
+ * weather forecast tool that uses the National Weather Service API.
+ * <p>
+ * Key components:
+ * Weather API integration methods (getWeatherForecast, makeNwsRequest)
+ * Server setup and configuration in the main method
+ * Tool registration for the weather forecast functionality
+ * <p>
+ * This class demonstrates how to create a practical MCP server with a useful tool that can be
+ * called by language models.
+ */
 public class MyMCPServer {
     private static final String NWS_API_BASE = "https://api.weather.gov";
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -118,20 +137,24 @@ public class MyMCPServer {
 
     public static void main(String[] args) throws Exception {
         HttpServletSseServerTransportProvider transportProvider =
-                new HttpServletSseServerTransportProvider(new ObjectMapper(), "/", "/sse");
+                new HttpServletSseServerTransportProvider(
+                        new ObjectMapper(), "/messages", "/sse");
 
-        McpAsyncServer syncServer = McpAsyncServer.builder(transportProvider)
+        McpSyncServer syncServer = McpServer.sync(transportProvider)
                 .serverInfo("custom-server", "0.0.1")
                 .capabilities(McpSchema.ServerCapabilities.builder()
                         .tools(true)
-                        .logging()
+                        .resources(false, false)
+                        .prompts(false)
                         .build())
                 .build();
 
-        AsyncToolSpecification asyncToolSpecification = AsyncToolSpecification.Sync(
+        McpServerFeatures.SyncToolSpecification syncToolSpecification =
+                new McpServerFeatures.SyncToolSpecification(
                         new McpSchema.Tool(
                                 "weather-forecast",
-                                "gives weather forecast for a location using latitude and longitude",
+                                "Gives weather forecast for a location using latitude and " +
+                                        "longitude",
                                 "{\n" +
                                         "  \"type\": \"object\",\n" +
                                         "  \"properties\": {\n" +
@@ -169,7 +192,7 @@ public class MyMCPServer {
                         }
                 );
 
-        syncServer.addTool(asyncToolSpecification).block();
+        syncServer.addTool(syncToolSpecification);
 
         QueuedThreadPool threadPool = new QueuedThreadPool();
         threadPool.setName("server");

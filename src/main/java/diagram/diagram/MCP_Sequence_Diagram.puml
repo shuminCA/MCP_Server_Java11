@@ -1,0 +1,125 @@
+@startuml MCP Sequence Diagram
+
+actor Client
+participant "McpClientSession" as ClientSession
+participant "McpTransport" as Transport
+participant "HttpServletSseServerTransportProvider" as ServerTransport
+participant "McpServerSession" as ServerSession
+participant "McpAsyncServer" as AsyncServer
+participant "Tool Handler" as ToolHandler
+
+== Initialization ==
+
+Client -> ClientSession: Create session
+ClientSession -> Transport: connect()
+Transport -> ServerTransport: HTTP connection
+ServerTransport -> ServerSession: Create session
+ServerSession -> AsyncServer: Register session
+
+Client -> ClientSession: sendRequest("initialize", params)
+activate ClientSession
+ClientSession -> Transport: sendMessage(JSONRPCRequest)
+activate Transport
+Transport -> ServerTransport: HTTP POST
+activate ServerTransport
+ServerTransport -> ServerSession: handle(message)
+activate ServerSession
+ServerSession -> AsyncServer: Handle initialize request
+activate AsyncServer
+AsyncServer --> ServerSession: InitializeResult
+deactivate AsyncServer
+ServerSession --> ServerTransport: JSONRPCResponse
+deactivate ServerSession
+ServerTransport --> Transport: HTTP Response
+deactivate ServerTransport
+Transport --> ClientSession: JSONRPCResponse
+deactivate Transport
+ClientSession --> Client: InitializeResult
+deactivate ClientSession
+
+== Tool Listing ==
+
+Client -> ClientSession: sendRequest("tools/list")
+activate ClientSession
+ClientSession -> Transport: sendMessage(JSONRPCRequest)
+activate Transport
+Transport -> ServerTransport: HTTP POST
+activate ServerTransport
+ServerTransport -> ServerSession: handle(message)
+activate ServerSession
+ServerSession -> AsyncServer: Handle tools/list request
+activate AsyncServer
+AsyncServer --> ServerSession: ListToolsResult
+deactivate AsyncServer
+ServerSession --> ServerTransport: JSONRPCResponse
+deactivate ServerSession
+ServerTransport --> Transport: HTTP Response
+deactivate ServerTransport
+Transport --> ClientSession: JSONRPCResponse
+deactivate Transport
+ClientSession --> Client: ListToolsResult
+deactivate ClientSession
+
+== Tool Execution ==
+
+Client -> ClientSession: sendRequest("tools/call", params)
+activate ClientSession
+ClientSession -> Transport: sendMessage(JSONRPCRequest)
+activate Transport
+Transport -> ServerTransport: HTTP POST
+activate ServerTransport
+ServerTransport -> ServerSession: handle(message)
+activate ServerSession
+ServerSession -> AsyncServer: Handle tools/call request
+activate AsyncServer
+AsyncServer -> ToolHandler: Execute tool
+activate ToolHandler
+ToolHandler --> AsyncServer: CallToolResult
+deactivate ToolHandler
+AsyncServer --> ServerSession: CallToolResult
+deactivate AsyncServer
+ServerSession --> ServerTransport: JSONRPCResponse
+deactivate ServerSession
+ServerTransport --> Transport: HTTP Response
+deactivate ServerTransport
+Transport --> ClientSession: JSONRPCResponse
+deactivate Transport
+ClientSession --> Client: CallToolResult
+deactivate ClientSession
+
+== Server-Initiated Notification ==
+
+AsyncServer -> ServerSession: Send notification
+activate ServerSession
+ServerSession -> ServerTransport: sendMessage(JSONRPCNotification)
+activate ServerTransport
+ServerTransport -> Transport: SSE Event
+activate Transport
+Transport -> ClientSession: Handle notification
+activate ClientSession
+ClientSession -> Client: Notification event
+deactivate ClientSession
+deactivate Transport
+deactivate ServerTransport
+deactivate ServerSession
+
+== Termination ==
+
+Client -> ClientSession: closeGracefully()
+activate ClientSession
+ClientSession -> Transport: closeGracefully()
+activate Transport
+Transport -> ServerTransport: Close connection
+activate ServerTransport
+ServerTransport -> ServerSession: close()
+activate ServerSession
+ServerSession --> ServerTransport: Connection closed
+deactivate ServerSession
+ServerTransport --> Transport: Connection closed
+deactivate ServerTransport
+Transport --> ClientSession: Connection closed
+deactivate Transport
+ClientSession --> Client: Session closed
+deactivate ClientSession
+
+@enduml
