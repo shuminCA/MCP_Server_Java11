@@ -1,12 +1,23 @@
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsonschema.JsonSchema;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,32 +81,168 @@ public class McpAsyncServer {
         );
     }
 
+    /**
+     * Converts a list of tool definitions from Map<String, Object> format into a list of McpSchema.Tool objects.
+     * 
+     * @param toolDefinitions A list of map objects containing tool definitions
+     * @return List of McpSchema.Tool objects
+     */
+    public List<McpSchema.Tool> convertToMcpTools(List<Map<String, Object>> toolDefinitions) {
+        List<McpSchema.Tool> mcpTools = new ArrayList<>();
+        
+        for (Map<String, Object> toolData : toolDefinitions) {
+            String name = (String) toolData.getOrDefault("name", "");
+            String description = (String) toolData.getOrDefault("description", "");
+            
+            // Create a JsonSchema object from the parameters
+            McpSchema.JsonSchema inputSchema = createJsonSchema(toolData);
+            
+            // Create the Tool object
+            McpSchema.Tool tool = new McpSchema.Tool(name, description, inputSchema);
+            mcpTools.add(tool);
+        }
+        
+        return mcpTools;
+    }
+
+    /**
+     * Creates a JsonSchema object directly from the parameters in the tool definition.
+     * 
+     * @param toolData The tool definition map
+     * @return A JsonSchema object representing the tool's input schema
+     */
+    private McpSchema.JsonSchema createJsonSchema(Map<String, Object> toolData) {
+        // Default type for the schema is "object"
+        String type = "object";
+        
+        // Create properties map for the schema
+        Map<String, McpSchema.JsonSchema.SchemaProperty> properties = new HashMap<>();
+        
+        // Create required list for the schema
+        List<String> required = new ArrayList<>();
+        
+        // Set additionalProperties to false by default
+        Boolean additionalProperties = false;
+        
+        // Process parameters if they exist
+        if (toolData.containsKey("parameters") && toolData.get("parameters") instanceof List) {
+            List<Map<String, Object>> params = (List<Map<String, Object>>) toolData.get("parameters");
+            
+            for (Map<String, Object> param : params) {
+                String paramName = (String) param.getOrDefault("name", "");
+                String paramType = (String) param.getOrDefault("type", "STRING");
+                boolean isRequired = (Boolean) param.getOrDefault("required", false);
+                
+                // Add to required list if needed
+                if (isRequired) {
+                    required.add(paramName);
+                }
+                
+                // Convert the parameter type to JSON schema type
+                String jsonSchemaType;
+                switch (paramType.toUpperCase()) {
+                    case "NUMBER":
+                        jsonSchemaType = "number";
+                        break;
+                    case "INTEGER":
+                        jsonSchemaType = "integer";
+                        break;
+                    case "BOOLEAN":
+                        jsonSchemaType = "boolean";
+                        break;
+                    case "ARRAY":
+                        jsonSchemaType = "array";
+                        break;
+                    case "OBJECT":
+                        jsonSchemaType = "object";
+                        break;
+                    case "STRING":
+                    default:
+                        jsonSchemaType = "string";
+                        break;
+                }
+                
+                // Create a SchemaProperty for this parameter
+                McpSchema.JsonSchema.SchemaProperty propertySchema = new McpSchema.JsonSchema.SchemaProperty(jsonSchemaType);
+                properties.put(paramName, propertySchema);
+            }
+        }
+        
+        // Create and return the JsonSchema
+        return new McpSchema.JsonSchema(type, properties, required, additionalProperties);
+    }
+
+    /**
+ * Utility method to handle HTTP requests to Snaplogic pipelines.
+ * This combines the common functionality from toolsListRequestHandler and toolsCallRequestHandler.
+ * 
+ * @param url The endpoint URL to call
+ * @param bearerToken The authorization token
+ * @param requestParams The parameters to send in the request body
+ * @return The response body as a String
+ * @throws IOException If an I/O error occurs
+ * @throws InterruptedException If the operation is interrupted
+ */
+private String callSnaplogicPipeline(Object requestParams) throws IOException, InterruptedException {
+    final String url = "http://localhost:8888/api/1/rest/slsched/feed/snaplogic/projects/MCP/MCP_server%20Task";
+    final String bearerToken = "DgRmatae0bB7NOudup7DSOXOPZfN0Jvn";
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("User-Agent", "MCP Weather Demo (your-email@example.com)")
+        .header("Authorization", "Bearer " + bearerToken)
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(
+            requestParams == null ? Map.of().toString() : objectMapper.writeValueAsString(requestParams)
+        ))
+        .build();
+
+    // Configure HttpClient to follow redirects
+    HttpClient clientWithRedirects = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
+
+    HttpResponse<String> response = clientWithRedirects.send(request, HttpResponse.BodyHandlers.ofString());
+    return response.body();
+}
+
     private McpServerSession.RequestHandler<McpSchema.ListToolsResult> toolsListRequestHandler() {
         return (exchange, params) -> {
-            List<McpSchema.Tool> tools = this.tools.stream()
-                    .map(AsyncToolSpecification::tool)
-                    .collect(Collectors.toList());
-
-            return Mono.just(new McpSchema.ListToolsResult(tools, null));
+            try {
+                String responseBody = callSnaplogicPipeline(params);
+                JsonNode responseJson = objectMapper.readTree(responseBody);
+                System.out.println("Response from list tools pipeline: " + responseJson);
+                
+                List<McpSchema.Tool> mcpTools = convertToMcpTools(
+                    objectMapper.convertValue(responseJson.get(0).get("tools"), List.class));
+                return Mono.just(new McpSchema.ListToolsResult(mcpTools, null));
+            } catch (Exception e) {
+                e.printStackTrace();
+                return Mono.error(new McpError("Failed to list tools: " + e.getMessage()));
+            }
         };
     }
 
     private McpServerSession.RequestHandler<McpSchema.CallToolResult> toolsCallRequestHandler() {
-        return (exchange, params) -> {
-            McpSchema.CallToolRequest callToolRequest = objectMapper.convertValue(params,
-                    new TypeReference<>() {
-                    });
-
-            Optional<AsyncToolSpecification> toolSpecification = this.tools.stream()
-                    .filter(tr -> callToolRequest.name().equals(tr.tool().name()))
-                    .findAny();
-
-            if (toolSpecification.isEmpty()) {
-                return Mono.error(new McpError("Tool not found: " + callToolRequest.name()));
+        return (exchange, params) -> {    
+            try {
+                McpSchema.CallToolRequest callToolRequest = objectMapper.convertValue(params,
+                    new TypeReference<>() {});
+                Map<String, Object> requestParams = callToolRequest.arguments();
+                requestParams.put("sl_tool_name", callToolRequest.name());
+                
+                String responseBody = callSnaplogicPipeline(requestParams);
+                
+                JsonNode responseJson = objectMapper.readTree(responseBody);
+                System.out.println("Response from server pipeline: " + responseJson);
+                
+                String responseJsonString = responseJson.get(0).toString();
+                return Mono.just(new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(responseJsonString)), null));
+            } catch (Exception e) {
+                e.printStackTrace();
+                return Mono.error(new McpError("Failed to call tool: " + e.getMessage()));
             }
-
-            return toolSpecification.map(tool -> tool.call().apply(exchange, callToolRequest.arguments()))
-                    .orElse(Mono.error(new McpError("Tool not found: " + callToolRequest.name())));
         };
     }
 
